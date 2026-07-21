@@ -1,0 +1,19 @@
+# Build output
+output/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Windows specific
+Thumbs.db
+Desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
