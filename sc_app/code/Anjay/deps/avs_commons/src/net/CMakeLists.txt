@@ -114,6 +114,13 @@ if(WITH_MBEDTLS)
     add_library(avs_net_mbedtls ${AVS_NET_MBEDTLS_SOURCES})
     target_link_libraries(avs_net_mbedtls PUBLIC avs_net_core avs_crypto_mbedtls mbedtls mbedcrypto mbedx509)
 
+    # Use custom mbedtls config instead of default config.h.
+    # The IMPORTED targets created by FindMbedTLS.cmake are not GLOBAL,
+    # so INTERFACE_COMPILE_DEFINITIONS set from parent scopes don't propagate here.
+    if(DEFINED MBEDTLS_CONFIG_FILE_VALUE)
+        target_compile_definitions(avs_net_mbedtls PRIVATE "MBEDTLS_CONFIG_FILE=${MBEDTLS_CONFIG_FILE_VALUE}")
+    endif()
+
     if(WITH_TLS_SESSION_PERSISTENCE)
         target_link_libraries(avs_net_mbedtls PUBLIC avs_persistence)
     endif()

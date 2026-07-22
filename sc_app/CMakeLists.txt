@@ -70,6 +70,7 @@ target_include_directories(mbedtls_local PUBLIC
 )
 
 # 设置 mbedtls 编译定义（使用我们的精简配置）
+# 使用 PUBLIC 确保所有链接 mbedtls_local 的目标（包括 avs_commons）都使用自定义配置
 target_compile_definitions(mbedtls_local PUBLIC
     MBEDTLS_CONFIG_FILE="mbedtls/anjay_mbedtls_config.h"
 )
@@ -77,12 +78,15 @@ target_compile_definitions(mbedtls_local PUBLIC
 # 设置 mbedtls 编译选项
 target_compile_options(mbedtls_local PRIVATE
     -Wno-missing-declarations
+    -Wno-unused-parameter
     -Wno-missing-prototypes
 )
 
 # 禁用安装规则（避免导出问题）
 set_target_properties(mbedtls_local PROPERTIES
     EXCLUDE_FROM_ALL TRUE
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mbedtls_output
+    OUTPUT_NAME mbedtls
 )
 
 # ============================================================================
@@ -90,12 +94,13 @@ set_target_properties(mbedtls_local PROPERTIES
 # ============================================================================
 
 # 设置 mbedtls 相关变量，供 avs_commons 的 FindMbedTLS 使用
+# 注意：使用实际文件路径而非目标名，因为 avs_commons 把这些值直接传给链接器
 set(MBEDTLS_FOUND TRUE CACHE BOOL "" FORCE)
 set(MBEDTLS_INCLUDE_DIR ${MBEDTLS_SRC_DIR}/include CACHE PATH "" FORCE)
-set(MBEDTLS_LIBRARY mbedtls_local CACHE STRING "" FORCE)
-set(MBEDTLS_CRYPTO_LIBRARY mbedtls_local CACHE STRING "" FORCE)
-set(MBEDTLS_X509_LIBRARY mbedtls_local CACHE STRING "" FORCE)
-set(MBEDTLS_LIBRARIES mbedtls_local CACHE STRING "" FORCE)
+set(MBEDTLS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/mbedtls_output/libmbedtls.a CACHE STRING "" FORCE)
+set(MBEDTLS_CRYPTO_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/mbedtls_output/libmbedtls.a CACHE STRING "" FORCE)
+set(MBEDTLS_X509_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/mbedtls_output/libmbedtls.a CACHE STRING "" FORCE)
+set(MBEDTLS_LIBRARIES ${CMAKE_CURRENT_BINARY_DIR}/mbedtls_output/libmbedtls.a CACHE STRING "" FORCE)
 set(MBEDTLS_VERSION "2.23.0" CACHE STRING "" FORCE)
 set(MBEDTLS_VERSION_MAJOR 2 CACHE STRING "" FORCE)
 set(MBEDTLS_VERSION_MINOR 23 CACHE STRING "" FORCE)
@@ -133,12 +138,23 @@ set(WITH_MBEDTLS ON CACHE BOOL "" FORCE)
 # 禁用 POSIX socket实现（使用自定义网络实现）
 set(WITH_POSIX_AVS_SOCKET OFF CACHE BOOL "" FORCE)
 
+# 启用线程支持，但使用 atomic_spinlock 后端（不依赖 pthread）
+set(WITH_AVS_COMPAT_THREADING ON CACHE BOOL "" FORCE)
+set(WITH_AVS_COMPAT_THREADING_PTHREAD OFF CACHE BOOL "" FORCE)
+set(WITH_AVS_COMPAT_THREADING_ATOMIC_SPINLOCK ON CACHE BOOL "" FORCE)
+
 # 禁用安装规则（避免导出问题）
 set(CMAKE_SKIP_INSTALL_RULES ON CACHE BOOL "" FORCE)
 
 # ============================================================================
 # 构建 Anjay 库
 # ============================================================================
+
+# 传递 mbedtls 自定义配置给 avs_commons 子目录
+# FindMbedTLS.cmake 创建的 IMPORTED 目标不是 GLOBAL 的，
+# 父目录无法通过 set_target_properties 设置属性，
+# 所以通过变量传递，在 avs_net_mbedtls 目标创建时直接添加编译定义
+set(MBEDTLS_CONFIG_FILE_VALUE "\"mbedtls/anjay_mbedtls_config.h\"")
 
 # 添加 Anjay 子目录
 add_subdirectory(${ANJAY_DIR} anjay_build)
@@ -155,25 +171,32 @@ set(SDK_INC_DIR ${SDK_INC_DIR})
 add_subdirectory(${ANJAY_PORT_DIR} anjay_port_build)
 
 # ============================================================================
-# 主应用程序
+# 主应用程序库（SDK 期望 sc_app 是一个静态库）
 # ============================================================================
 
-add_executable(anjay_simcom_app
-    AppMain.c
+# 确保 avs_commons 输出目录存在（avs_commons 会将库输出到 anjay_build/deps/avs_commons/output/lib/）
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/anjay_build/deps/avs_commons/output/lib)
+
+# 创建INTERFACE库（无源文件），聚合所有依赖供SDK的userspace目标链接
+add_library(sc_app INTERFACE)
+
+# 允许多重定义（解决 avs_commons 库重复链接问题）
+target_link_options(sc_app INTERFACE
+    --allow-multiple-definition
 )
 
-# 添加配置文件目录到包含路径
-target_include_directories(anjay_simcom_app PRIVATE
+# 传递配置文件目录
+target_include_directories(sc_app INTERFACE
     ${ANJAY_PORT_CONFIG_DIR}
 )
 
-# 链接所有库
-target_link_libraries(anjay_simcom_app PRIVATE
+# 传递所有库依赖
+# 注意：mbedtls_local 使用生成器表达式，因为INTERFACE库传递到父目录时目标名无法正确解析
+target_link_libraries(sc_app INTERFACE
     anjay_port
     anjay
     avs_coap
-    ${AVS_COMMONS_LIBRARIES}
-    mbedtls_local
+    $<TARGET_FILE:mbedtls_local>
 )
 
 # ============================================================================
@@ -183,30 +206,6 @@ target_link_libraries(anjay_simcom_app PRIVATE
 # SDK 预编译库路径
 set(SDK_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../sc_lib/A7672E_FASE_1603_V201_DS_OPENSDK/lib)
 
-# 链接 SIMCOM SDK 库
-target_link_libraries(anjay_simcom_app PRIVATE
-    ${SDK_LIB_DIR}/libsc_lib.a
-    ${SDK_LIB_DIR}/libsc_app.a
-)
+# SDK库已由SDK的CMakeLists.txt自动链接，不需要在这里重复链接
 
-# ============================================================================
-# 链接脚本
-# ============================================================================
-
-# 设置链接脚本（如果需要）
-# target_link_options(anjay_simcom_app PRIVATE -T${LINKER_SCRIPT})
-
-# ============================================================================
-# 输出文件配置
-# ============================================================================
-
-set_target_properties(anjay_simcom_app PROPERTIES
-    OUTPUT_NAME "anjay_simcom"
-    SUFFIX ".elf"
-)
-
-# 生成 bin 文件
-add_custom_command(TARGET anjay_simcom_app POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:anjay_simcom_app> ${CMAKE_CURRENT_BINARY_DIR}/anjay_simcom.bin
-    COMMENT "Generating bin file..."
-)
+# INTERFACE库不需要输出文件配置（SDK通过target_link_libraries引用此目标）

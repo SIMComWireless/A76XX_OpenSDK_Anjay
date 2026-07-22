@@ -8,6 +8,9 @@
 #ifndef ANJAY_MBEDTLS_CONFIG_H
 #define ANJAY_MBEDTLS_CONFIG_H
 
+#include <limits.h>
+#include <stdlib.h>
+
 /* ============================================================================
  * 基础加密算法
  * ============================================================================ */
@@ -91,10 +94,19 @@
 /* 允许内联汇编优化 */
 #define MBEDTLS_HAVE_ASM
 
+/* 使用自定义 timing 实现（SIMCOM 平台没有 Unix/Windows API） */
+#define MBEDTLS_TIMING_ALT
+
 /* 使用标准库内存分配 */
 #define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_PLATFORM_CALLOC_MACRO   calloc
 #define MBEDTLS_PLATFORM_FREE_MACRO     free
+
+/* 禁用平台熵源（嵌入式平台没有 /dev/urandom 或 Windows CryptoAPI） */
+#define MBEDTLS_NO_PLATFORM_ENTROPY
+
+/* 使用自定义硬件熵源（需实现 mbedtls_hardware_poll） */
+#define MBEDTLS_ENTROPY_HARDWARE_ALT
 
 /* 禁用时间日期功能（嵌入式平台可能没有 RTC） */
 /* #undef MBEDTLS_HAVE_TIME */

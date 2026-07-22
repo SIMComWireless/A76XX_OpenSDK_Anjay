@@ -12,6 +12,9 @@ set PROJECTDIR=%CD%
 del %PROJECTDIR%\out\*.*   /s /q
 del %EATSDKDIR%\output\*.* /s /q
 del %EATSDKDIR%\sc_app\*.*  /s /q
+REM Clean anjay build directory to avoid stale .a files and Windows ar race condition
+REM (arm-none-eabi-ar on Windows has race conditions with parallel builds)
+if exist "%EATSDKDIR%\sc_app\anjay_build" rmdir /s /q "%EATSDKDIR%\sc_app\anjay_build"
 XCOPY  %PROJECTDIR%\sc_app  %EATSDKDIR%\sc_app\  /S/E/Y
 COPY  %PROJECTDIR%\CMakeLists.txt  %EATSDKDIR%\CMakeLists.txt
 COPY  %PROJECTDIR%\.config  %EATSDKDIR%\config\.config
@@ -25,7 +28,8 @@ REM ============================================================================
 if defined SELECTED_MODULE (
     echo Using pre-defined module: !SELECTED_MODULE!
     echo Running: gnumake !SELECTED_MODULE!
-    gnumake !SELECTED_MODULE!
+    REM BUILD=ninja -j1: limit ninja parallelism to avoid arm-none-eabi-ar race condition on Windows
+    gnumake "BUILD=ninja -j1" !SELECTED_MODULE!
     goto COPY_OUTPUT
 )
 
@@ -128,7 +132,8 @@ REM ============================================================================
 REM Build the selected module
 REM ============================================================================
 echo Running: gnumake !SELECTED_MODULE!
-gnumake !SELECTED_MODULE!
+REM BUILD=ninja -j1: limit ninja parallelism to avoid arm-none-eabi-ar race condition on Windows
+gnumake "BUILD=ninja -j1" !SELECTED_MODULE!
 
 :COPY_OUTPUT
 REM ============================================================================

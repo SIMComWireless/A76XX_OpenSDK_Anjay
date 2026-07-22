@@ -680,7 +680,7 @@
  * If the TLS backend is either mbed TLS or OpenSSL, enables support for (D)TLS
  * session persistence.
  */
-#define AVS_COMMONS_NET_WITH_TLS_SESSION_PERSISTENCE
+/* #undef AVS_COMMONS_NET_WITH_TLS_SESSION_PERSISTENCE */ /* Disabled: requires MBEDTLS_SSL_SRV_C */
 /**@}*/
 
 /**

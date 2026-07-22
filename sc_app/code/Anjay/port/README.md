@@ -11,7 +11,6 @@ port/
 │   └── simcom_platform.h       # Platform abstraction API
 ├── src/
 │   ├── net_impl.c              # Network layer (UDP/TCP socket wrapper)
-│   ├── tls_impl.c              # DTLS layer (stub - needs extension)
 │   ├── platform_impl.c         # Logging and utilities
 │   └── anjay_main.c            # Main client entry point
 ├── CMakeLists.txt              # CMake build file
@@ -89,27 +88,12 @@ void userSpace_Main(void *arg) {
 
 ## DTLS Support
 
-The current implementation includes a **stub DTLS layer** that works in NoSec mode (no encryption). This is suitable for testing but not for production.
+DTLS is handled by Anjay's native mbedtls integration (`AVS_COMMONS_WITH_MBEDTLS`). The mbedtls source is located at `Third_Party/mbedtls/` and is compiled as part of the build.
 
-### Enabling Full DTLS
+### Supported Security Modes
 
-To add DTLS support, you have two options:
-
-#### Option 1: Add mbedtls Source (Recommended)
-
-1. Download mbedtls 3.x source code
-2. Place it in `SIMCOM_SDK_SET/public_libs/mbedtls/`
-3. Update `tls_impl.c` to use mbedtls DTLS functions
-4. Set `DTLS_BACKEND=mbedtls` in CMake
-
-#### Option 2: Use SDK's Crypto Primitives
-
-The SDK has basic crypto functions in `libsc_lib.a`. You can implement DTLS using:
-- `mbedtls_aes_*` for AES
-- `mbedtls_md_*` for SHA-256
-- `mbedtls_entropy_*` for random number generation
-
-This is more complex and requires implementing the DTLS protocol manually.
+- **NoSec** (`ANJAY_SECURITY_NOSEC`) — No encryption, for testing only
+- **PSK** (`ANJAY_SECURITY_PSK`) — Pre-Shared Key authentication via DTLS 1.2
 
 ### NoSec Mode (Testing Only)
 

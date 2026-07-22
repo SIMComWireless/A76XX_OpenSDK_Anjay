@@ -54,6 +54,9 @@ set(PORT_SOURCES
     src/net_impl.c
     src/platform_impl.c
     src/anjay_main.c
+    src/timing_simcom.c
+    src/device_object.c
+    src/conn_stats_object.c
 )
 
 # ============================================================================
@@ -81,6 +84,18 @@ target_include_directories(anjay_port PUBLIC ${PORT_INCLUDES})
 
 # 链接 mbedtls 库
 target_link_libraries(anjay_port PUBLIC mbedtls_local)
+
+# ============================================================================
+# Pre-build: 确保输出目录存在（避免 Windows ninja 并行 archiving 竞态问题）
+# arm-none-eabi-ar 在 Windows 上创建临时文件再 rename，
+# 如果输出目录不存在会导致 "unable to rename" 错误
+# ============================================================================
+if(CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
+    add_custom_command(TARGET anjay_port PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}"
+        COMMENT "Ensuring archive output directory exists"
+    )
+endif()
 
 # ============================================================================
 # 链接依赖

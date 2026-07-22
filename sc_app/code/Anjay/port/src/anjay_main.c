@@ -9,6 +9,12 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+/* ARM toolchain may not define UINT16_MAX in stdint.h */
+#ifndef UINT16_MAX
+#define UINT16_MAX 0xFFFF
+#endif
 
 /* SIMCOM SDK headers */
 #include "simcom_os.h"
@@ -19,12 +25,13 @@
 #include <anjay/anjay.h>
 #include <anjay/security.h>
 #include <anjay/server.h>
-#include <anjay/bootstrap.h>
 #include <avsystem/commons/avs_log.h>
 
 /* Platform headers */
 #include "simcom_platform.h"
 #include "anjay_simcom_config.h"
+#include "device_object.h"
+#include "conn_stats_object.h"
 
 #define LOG_MODULE "anjay_main"
 #define LOG(level, ...) SIMCOM_LOG_##level(LOG_MODULE, __VA_ARGS__)
@@ -33,7 +40,7 @@
  * Global variables
  *===========================================================================*/
 static anjay_t *g_anjay = NULL;
-static bool g_anjay_running = false;
+static volatile int g_anjay_running = 0;
 
 /*===========================================================================
  * Security object setup (Bootstrap mode)
@@ -56,7 +63,7 @@ static int setup_security_object(anjay_t *anjay) {
         .public_cert_or_psk_identity_size = strlen(BOOTSTRAP_PSK_IDENTITY),
         .private_cert_or_psk_key = (const uint8_t *)BOOTSTRAP_PSK_KEY,
         .private_cert_or_psk_key_size = strlen(BOOTSTRAP_PSK_KEY),
-        .is_bootstrap = true  /* Mark as Bootstrap server */
+        .bootstrap_server = true  /* Mark as Bootstrap server */
     };
 
     anjay_iid_t security_instance_id = ANJAY_ID_INVALID;
@@ -69,19 +76,6 @@ static int setup_security_object(anjay_t *anjay) {
     LOG(INFO, "Bootstrap Security instance added (SSID=%d, URI=%s)",
         security_instance_id, BOOTSTRAP_SERVER_URI);
 
-    return 0;
-}
-
-/*===========================================================================
- * Bootstrap object setup
- *===========================================================================*/
-static int setup_bootstrap_object(anjay_t *anjay) {
-    if (anjay_bootstrap_object_install(anjay)) {
-        LOG(ERROR, "Failed to install Bootstrap object");
-        return -1;
-    }
-
-    LOG(INFO, "Bootstrap object installed");
     return 0;
 }
 
@@ -121,9 +115,16 @@ static int anjay_event_loop(anjay_t *anjay) {
             }
         }
 
-        /* Determine wait time from scheduler */
+        /* Use a short select timeout as a safety net.
+         * Even if select() doesn't properly signal UDP readability
+         * on this platform, we'll still poll data in time. */
         const int max_wait_time_ms = 1000;
         int wait_ms = anjay_sched_calculate_wait_time_ms(anjay, max_wait_time_ms);
+
+        /* Cap at 250ms to avoid missing CoAP retransmissions */
+        if (wait_ms > 250) {
+            wait_ms = 250;
+        }
 
         struct timeval tv = {
             .tv_sec = wait_ms / 1000,
@@ -132,7 +133,9 @@ static int anjay_event_loop(anjay_t *anjay) {
 
         /* Wait for events */
         int ret = select(maxfd + 1, &readfds, NULL, NULL, &tv);
+
         if (ret > 0) {
+            /* select() reported data — serve all readable sockets */
             AVS_LIST(avs_net_socket_t *const) socket = NULL;
             AVS_LIST_FOREACH(socket, sockets) {
                 const int *fd_ptr =
@@ -140,6 +143,26 @@ static int anjay_event_loop(anjay_t *anjay) {
                 if (fd_ptr && *fd_ptr >= 0 && FD_ISSET(*fd_ptr, &readfds)) {
                     if (anjay_serve(anjay, *socket)) {
                         LOG(ERROR, "anjay_serve failed");
+                    }
+                }
+            }
+        }
+
+        /* Always try to serve — defensive poll in case select() missed
+         * an event or lwIP doesn't reliably report UDP readability */
+        {
+            AVS_LIST(avs_net_socket_t *const) socket = NULL;
+            AVS_LIST_FOREACH(socket, sockets) {
+                const int *fd_ptr =
+                        (const int *)avs_net_socket_get_system(*socket);
+                if (fd_ptr && *fd_ptr >= 0) {
+                    /* Check if socket has pending data with non-blocking peek */
+                    fd_set probe;
+                    struct timeval zero = {0, 0};
+                    FD_ZERO(&probe);
+                    FD_SET(*fd_ptr, &probe);
+                    if (select(*fd_ptr + 1, &probe, NULL, NULL, &zero) > 0) {
+                        anjay_serve(anjay, *socket);
                     }
                 }
             }
@@ -166,6 +189,9 @@ static int anjay_event_loop(anjay_t *anjay) {
  * @return 0 on success, -1 on failure
  */
 int anjay_client_start(void) {
+    /* Initialize avs_log handler so Anjay internal errors are visible */
+    simcom_platform_log_init();
+
     LOG(INFO, "Starting Anjay LWM2M client...");
     LOG(INFO, "Endpoint: %s", ANJAY_ENDPOINT_NAME);
     LOG(INFO, "Bootstrap URI: %s", BOOTSTRAP_SERVER_URI);
@@ -194,8 +220,25 @@ int anjay_client_start(void) {
         return -1;
     }
 
-    /* Setup Bootstrap object */
-    if (setup_bootstrap_object(g_anjay)) {
+    /* Install Server object — required for Bootstrap to write /1/* instances */
+    if (anjay_server_object_install(g_anjay)) {
+        LOG(ERROR, "Failed to install Server object");
+        anjay_delete(g_anjay);
+        g_anjay = NULL;
+        return -1;
+    }
+
+    /* Install Device Object (/3) */
+    if (anjay_register_object(g_anjay, device_object_def_ptr())) {
+        LOG(ERROR, "Failed to install Device object");
+        anjay_delete(g_anjay);
+        g_anjay = NULL;
+        return -1;
+    }
+
+    /* Install Connectivity Statistics Object (/7) */
+    if (anjay_register_object(g_anjay, conn_stats_object_def_ptr())) {
+        LOG(ERROR, "Failed to install Conn Stats object");
         anjay_delete(g_anjay);
         g_anjay = NULL;
         return -1;
@@ -241,7 +284,7 @@ bool anjay_client_is_running(void) {
  *===========================================================================*/
 
 /* Task stack and handle */
-#define ANJAY_TASK_STACK_SIZE (1024 * 16)  /* 16KB stack */
+#define ANJAY_TASK_STACK_SIZE (1024 * 50)  /* 50KB stack */
 static char g_anjay_task_stack[ANJAY_TASK_STACK_SIZE];
 static sTaskRef g_anjay_task_ref = NULL;
 
@@ -251,9 +294,6 @@ static sTaskRef g_anjay_task_ref = NULL;
  */
 static void anjay_task_entry(void *arg) {
     (void)arg;
-
-    /* Wait for system initialization */
-    sAPI_TaskSleep(2000);
 
     /* Start the client */
     anjay_client_start();

@@ -62,7 +62,7 @@
 
 /* Endpoint name - must be unique for each device */
 #ifndef ANJAY_ENDPOINT_NAME
-#define ANJAY_ENDPOINT_NAME         "simcom_a7672e_device"
+#define ANJAY_ENDPOINT_NAME         "XIOT_Client01"
 #endif
 
 /* Buffer sizes (adjust based on available RAM) */

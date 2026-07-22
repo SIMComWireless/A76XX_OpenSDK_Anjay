@@ -16,6 +16,11 @@
 #include "simcom_os.h"
 #include "simcom_debug.h"
 
+/* FreeRTOS tick period (5ms per tick on this platform) */
+#ifndef portTICK_PERIOD_MS
+#define portTICK_PERIOD_MS 5
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -206,6 +211,30 @@ void simcom_log(simcom_log_level_t level, const char *module,
     simcom_log(SIMCOM_LOG_WARN, module, __FILE__, __LINE__, __VA_ARGS__)
 #define SIMCOM_LOG_ERROR(module, ...) \
     simcom_log(SIMCOM_LOG_ERROR, module, __FILE__, __LINE__, __VA_ARGS__)
+
+/**
+ * @brief Initialize avs_log handler to route Anjay logs to UART
+ *
+ * Must be called before anjay_new() so that internal error messages
+ * are visible on the debug console.
+ */
+void simcom_platform_log_init(void);
+
+/**
+ * @brief Initialize SC_UART (UART1, 115200 8N1) for log output
+ *        and start the async ring-buffer writer task.
+ *
+ * Must be called before any log functions.
+ */
+void simcom_uart_log_init(void);
+
+/**
+ * @brief Non-blocking log write to SC_UART via ring buffer.
+ *
+ * Data is queued in a ring buffer and drained asynchronously by the
+ * writer task. Safe to call from any context.
+ */
+void simcom_uart_log_write(const char *fmt, ...);
 
 #ifdef __cplusplus
 }

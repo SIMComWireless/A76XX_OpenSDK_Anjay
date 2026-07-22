@@ -11,21 +11,80 @@
 /* SIMCOM SDK headers */
 #include "scfw_socket.h"
 #include "scfw_socket_define.h"
+#include "scfw_inet_define.h"
 #include "scfw_netdb.h"
+
+/* Byte-order conversion macros (SIMCOM SDK headers don't provide these) */
+#ifndef htons
+#    if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#        define htons(x) (x)
+#        define ntohs(x) (x)
+#    else
+#        define htons(x) __builtin_bswap16(x)
+#        define ntohs(x) __builtin_bswap16(x)
+#    endif
+#endif
+#ifndef htonl
+#    if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#        define htonl(x) (x)
+#        define ntohl(x) (x)
+#    else
+#        define htonl(x) __builtin_bswap32(x)
+#        define ntohl(x) __builtin_bswap32(x)
+#    endif
+#endif
 
 /* Anjay headers */
 #include <avsystem/commons/avs_socket_v_table.h>
 #include <avsystem/commons/avs_log.h>
+#include <avsystem/commons/avs_addrinfo.h>
+#include <avsystem/commons/avs_socket.h>
 
 /* Platform config */
 #include "anjay_simcom_config.h"
+#include "simcom_platform.h"
 
 /* Ensure custom network implementation is used */
 #ifdef AVS_COMMONS_NET_WITH_POSIX_AVS_SOCKET
 #    error "Custom implementation conflicts with AVS_COMMONS_NET_WITH_POSIX_AVS_SOCKET"
 #endif
 
-#define LOG(level, ...) avs_log(simcom_net, level, __VA_ARGS__)
+#define LOG_MODULE "simcom_net"
+#define LOG(level, ...) SIMCOM_LOG_##level(LOG_MODULE, __VA_ARGS__)
+
+/*===========================================================================
+ * avs_net_resolved_endpoint_get_host_port
+ * Required by Anjay core (referenced from anjay_connection_ip.c).
+ * Normally provided by avs_commons' POSIX compat layer, but that is
+ * disabled in this project. Provide a minimal implementation here.
+ *===========================================================================*/
+avs_error_t
+avs_net_resolved_endpoint_get_host_port(const avs_net_resolved_endpoint_t *endp,
+                                        char *host, size_t hostlen,
+                                        char *serv, size_t servlen) {
+    if (!endp || endp->size < sizeof(struct sockaddr_in)) {
+        return avs_errno(AVS_EINVAL);
+    }
+
+    const struct sockaddr_in *sa =
+            (const struct sockaddr_in *)&endp->data.buf;
+
+    if (host && hostlen > 0) {
+        if (!inet_ntop(AF_INET, &sa->sin_addr, host, (socklen_t)hostlen)) {
+            return avs_errno(AVS_EINVAL);
+        }
+    }
+
+    if (serv && servlen > 0) {
+        uint16_t port = ntohs(sa->sin_port);
+        if (snprintf(serv, servlen, "%u", (unsigned)port)
+                >= (int)servlen) {
+            return avs_errno(AVS_ERANGE);
+        }
+    }
+
+    return AVS_OK;
+}
 
 /*===========================================================================
  * Forward declarations for Anjay platform functions
@@ -53,12 +112,12 @@ typedef struct {
  * Global state management
  *===========================================================================*/
 avs_error_t _avs_net_initialize_global_compat_state(void) {
-    LOG(AVS_LOG_INFO, "Network global state initialized");
+    LOG(INFO, "Network global state initialized");
     return AVS_OK;
 }
 
 void _avs_net_cleanup_global_compat_state(void) {
-    LOG(AVS_LOG_INFO, "Network global state cleaned up");
+    LOG(INFO, "Network global state cleaned up");
 }
 
 /*===========================================================================
@@ -76,7 +135,7 @@ static avs_error_t resolve_address(const char *host, const char *port,
 
     int err = sAPI_TcpipGetaddrinfo(host, port, &hints, &res);
     if (err != 0 || !res) {
-        LOG(AVS_LOG_ERROR, "DNS resolution failed for %s:%s (err=%d)", host, port, err);
+        LOG(ERROR,"DNS resolution failed for %s:%s (err=%d)", host, port, err);
         return avs_errno(AVS_EADDRNOTAVAIL);
     }
 
@@ -94,7 +153,7 @@ static avs_error_t
 net_connect(avs_net_socket_t *sock_, const char *host, const char *port) {
     net_socket_impl_t *sock = (net_socket_impl_t *)sock_;
 
-    LOG(AVS_LOG_DEBUG, "net_connect: %s:%s (fd=%d)", host, port, sock->fd);
+    LOG(DEBUG, "net_connect: %s:%s (fd=%d)", host, port, sock->fd);
 
     /* Resolve address */
     struct sockaddr_in addr;
@@ -108,22 +167,24 @@ net_connect(avs_net_socket_t *sock_, const char *host, const char *port) {
     if (sock->fd < 0) {
         sock->fd = socket(AF_INET, sock->socktype, 0);
         if (sock->fd < 0) {
-            LOG(AVS_LOG_ERROR, "socket() failed");
+            LOG(ERROR,"socket() failed");
             return avs_errno(AVS_UNKNOWN_ERROR);
         }
     }
 
     /* Connect */
     if (connect(sock->fd, (struct sockaddr *)&addr, addrlen) != 0) {
-        LOG(AVS_LOG_ERROR, "connect() failed");
+        LOG(ERROR,"connect() failed");
         close(sock->fd);
         sock->fd = -1;
         return avs_errno(AVS_ECONNREFUSED);
     }
 
-    /* Store remote info */
+    /* Store remote info (ensure null termination) */
     strncpy(sock->remote_host, host, sizeof(sock->remote_host) - 1);
+    sock->remote_host[sizeof(sock->remote_host) - 1] = '\0';
     strncpy(sock->remote_port, port, sizeof(sock->remote_port) - 1);
+    sock->remote_port[sizeof(sock->remote_port) - 1] = '\0';
 
     return AVS_OK;
 }
@@ -141,7 +202,7 @@ net_send(avs_net_socket_t *sock_, const void *buffer, size_t buffer_length) {
         return AVS_OK;
     }
 
-    LOG(AVS_LOG_ERROR, "send() failed or partial write");
+    LOG(ERROR,"send() failed or partial write");
     return avs_errno(AVS_EIO);
 }
 
@@ -185,17 +246,16 @@ static avs_error_t net_receive(avs_net_socket_t *sock_,
     /* Receive data */
     ssize_t bytes_received = recv(sock->fd, buffer, buffer_length, 0);
     if (bytes_received < 0) {
-        LOG(AVS_LOG_ERROR, "recv() failed");
+        LOG(ERROR,"recv() failed");
         return avs_errno(AVS_EIO);
     }
 
     *out_bytes_received = (size_t)bytes_received;
 
-    /* For UDP, check if buffer was too small */
-    if (buffer_length > 0 && sock->socktype == SOCK_DGRAM
-            && (size_t)bytes_received == buffer_length) {
-        return avs_errno(AVS_EMSGSIZE);
-    }
+    /* Note: cannot reliably detect UDP truncation from recv() alone
+     * (full buffer could mean exact fit or truncated). A proper check
+     * would require MSG_PEEK + FIONREAD. Skip the EMSGSIZE check here
+     * and let the CoAP parser handle malformed messages. */
 
     return AVS_OK;
 }
@@ -204,7 +264,7 @@ static avs_error_t net_bind(avs_net_socket_t *sock_, const char *address,
                             const char *port) {
     net_socket_impl_t *sock = (net_socket_impl_t *)sock_;
 
-    LOG(AVS_LOG_DEBUG, "net_bind: %s:%s", address ? address : "any", port);
+    LOG(DEBUG, "net_bind: %s:%s", address ? address : "any", port);
 
     /* Create socket if needed */
     if (sock->fd < 0) {
@@ -226,7 +286,7 @@ static avs_error_t net_bind(avs_net_socket_t *sock_, const char *address,
     }
 
     if (bind(sock->fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-        LOG(AVS_LOG_ERROR, "bind() failed");
+        LOG(ERROR,"bind() failed");
         return avs_errno(AVS_EADDRINUSE);
     }
 
@@ -418,7 +478,7 @@ net_create_socket(avs_net_socket_t **socket_ptr,
     socket->remote_port[0] = '\0';
 
     *socket_ptr = (avs_net_socket_t *)socket;
-    LOG(AVS_LOG_DEBUG, "Created %s socket", (socktype == SOCK_DGRAM) ? "UDP" : "TCP");
+    LOG(DEBUG, "Created %s socket", (socktype == SOCK_DGRAM) ? "UDP" : "TCP");
 
     return AVS_OK;
 }

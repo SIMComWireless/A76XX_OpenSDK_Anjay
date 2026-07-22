@@ -17,13 +17,13 @@ SET(STDLIB
     ${GCC_ARM_TOOLCHAIN_DIR}/lib/gcc/arm-none-eabi/${GCC_VERSION}/${GCC_STDLIB_TARGET_PATH}/libgcc.a"
 )
 
-#支持的编程语言配置
+# Supported programming languages
 enable_language(ASM)
 
-#项目名称
+# Project name
 PROJECT(userspace)
 
-# 项目配置
+# Project configuration
 INCLUDE("${CMAKE_SOURCE_DIR}/config/buildOptions.cmake")
 configure_file(
     "${PROJECT_SOURCE_DIR}/config/userspaceConfig.h.in"
@@ -32,7 +32,7 @@ configure_file(
 
 if(NOT DEFINED MODULE_LIST)
 
-    # 预定义
+    # Predefined macros
     if(PROJECT_YSZNBG)
         ADD_DEFINITIONS(-DHOST_NAME="${SCMODULE}")
     endif(PROJECT_YSZNBG)
@@ -53,7 +53,7 @@ if(NOT DEFINED MODULE_LIST)
     endif()
 
 
-    # 编译子目录
+    # Compile subdirectories
     if(NOT DEFINED SIMCOM_SDK)
         if(DEFINED QL)
             add_subdirectory(./ql_lib ql_lib)
@@ -87,10 +87,10 @@ if(NOT DEFINED MODULE_LIST)
         add_subdirectory(./application/ysznbg ysznbg)
     endif(PROJECT_YSZNBG)
 
-	# APP CODE 文件夹
+	# APP CODE directory
 	add_subdirectory(./sc_app sc_app)
 
-    # 外部库列表
+    # External libraries list
     add_library(third_libs OBJECT IMPORTED GLOBAL)
 
     if(DEFINED THIRD_LIB)
@@ -139,7 +139,7 @@ if(NOT DEFINED MODULE_LIST)
         )
     endif(PROJECT_YSZNBG)
 
-    # app源码及编译目标文件定义
+    # App source and build target definition
     # AUX_SOURCE_DIRECTORY(./ app_src)
     if(DEFINED QL)
     SET(app_src ql_application.c)
@@ -182,7 +182,7 @@ if(NOT DEFINED MODULE_LIST)
     set_target_properties(userspace PROPERTIES SUFFIX ".elf")
     set_target_properties(userspace PROPERTIES OUTPUT_NAME ${APP_NAME})
 
-    # 连接目标配置
+    # Link target configuration
     if(DEFINED QL)
         if(NOT DEFINED SIMCOM_SDK)
             target_link_libraries(userspace PRIVATE ql_lib)
@@ -226,7 +226,7 @@ if(NOT DEFINED MODULE_LIST)
         target_link_libraries(userspace PRIVATE topband)
     endif(PROJECT_TBDTU)
 
-    # 设置连接脚本
+    # Set linker script
     SET(LINK_SCRIP "${CMAKE_CURRENT_SOURCE_DIR}/config/${SCMODULE}_linkscript.ld")
 
     TARGET_LINK_OPTIONS(userspace PRIVATE
@@ -234,7 +234,7 @@ if(NOT DEFINED MODULE_LIST)
         -NOSTDLIB ${SDK_ADD_PRIV_WRAPFLAGS}
     )
 
-    # 连接参数配置
+    # Linker wrap options
     SET(SDK_ADD_PRIV_WRAPFLAGS
         --wrap=fopen
         --wrap=fclose
@@ -248,12 +248,12 @@ if(NOT DEFINED MODULE_LIST)
     )
 
 
-    # 库文件输出路径
+    # Library output path
     SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
 endif(NOT DEFINED MODULE_LIST)
 
-# 自定义命令
+# Custom command (post-build binary generation, disabled)
 # add_custom_command(
 #     TARGET userspace
 #     POST_BUILD
@@ -263,7 +263,7 @@ endif(NOT DEFINED MODULE_LIST)
 # )
 
 if(NOT DEFINED SIMCOM_SDK)
-# 安装SDK包
+# Install SDK package
     SET(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR})  # default is /usr/local
 
     # install tools
