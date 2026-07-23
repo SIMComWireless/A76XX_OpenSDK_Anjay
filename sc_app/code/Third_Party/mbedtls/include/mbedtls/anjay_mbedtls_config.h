@@ -1,8 +1,8 @@
 /**
  * @file anjay_mbedtls_config.h
- * @brief 精简的 mbedtls 配置，用于 Anjay LwM2M 客户端在 SIMCOM A7672E 平台
+ * @brief Minimal mbedtls configuration for Anjay LwM2M client on SIMCOM A7672E platform
  *
- * 仅启用 DTLS + PSK 所需的最小功能集，以节省 ROM/RAM 空间。
+ * Only enables the minimum feature set required for DTLS + PSK to save ROM/RAM space.
  */
 
 #ifndef ANJAY_MBEDTLS_CONFIG_H
@@ -12,125 +12,125 @@
 #include <stdlib.h>
 
 /* ============================================================================
- * 基础加密算法
+ * Core Cryptographic Algorithms
  * ============================================================================ */
 
-/* AES 块加密 - DTLS 必需 */
+/* AES block cipher - required for DTLS */
 #define MBEDTLS_AES_C
 
-/* CCM 模式 - AES-CCM 密码套件需要 */
+/* CCM mode - required for AES-CCM cipher suites */
 #define MBEDTLS_CCM_C
 
-/* GCM 模式 - AES-GCM 密码套件需要 */
-#define MBEDTLS_GCM_C
+/* GCM mode - required for AES-GCM cipher suites (disabled, PSK mode only needs CCM) */
+/* #undef MBEDTLS_GCM_C */
 
-/* 通用加密层 */
+/* Generic cipher layer */
 #define MBEDTLS_CIPHER_C
 
-/* CTR_DRBG 随机数生成器 */
+/* CTR_DRBG random number generator */
 #define MBEDTLS_CTR_DRBG_C
 
-/* 熵源 */
+/* Entropy source */
 #define MBEDTLS_ENTROPY_C
 
-/* SHA-256 哈希 - DTLS 握手需要 */
+/* SHA-256 hash - required for DTLS handshake */
 #define MBEDTLS_SHA256_C
 
-/* 消息摘要层 */
+/* Message digest layer */
 #define MBEDTLS_MD_C
 
-/* ASN1 解析（最小集） */
+/* ASN1 parsing (minimal set) */
 #define MBEDTLS_ASN1_PARSE_C
 
 /* ============================================================================
- * DTLS/TLS 协议支持
+ * DTLS/TLS Protocol Support
  * ============================================================================ */
 
-/* DTLS 协议支持 - LwM2M CoAP 必需 */
+/* DTLS protocol support - required for LwM2M CoAP */
 #define MBEDTLS_SSL_PROTO_DTLS
 
-/* TLS 1.2 协议（DTLS 1.2 基于此） */
+/* TLS 1.2 protocol (DTLS 1.2 is based on this) */
 #define MBEDTLS_SSL_PROTO_TLS1_2
 
-/* SSL 客户端功能 */
+/* SSL client functionality */
 #define MBEDTLS_SSL_CLI_C
 
-/* SSL/TLS 核心层 */
+/* SSL/TLS core layer */
 #define MBEDTLS_SSL_TLS_C
 
-/* 发送所有告警消息 */
-#define MBEDTLS_SSL_ALL_ALERT_MESSAGES
+/* Send all alert messages (not essential, saves space when disabled) */
+/* #undef MBEDTLS_SSL_ALL_ALERT_MESSAGES */
 
-/* 最大分片长度支持 */
-#define MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
+/* Maximum fragment length support (not essential, saves space when disabled) */
+/* #undef MBEDTLS_SSL_MAX_FRAGMENT_LENGTH */
 
-/* 导出密钥块支持 */
-#define MBEDTLS_SSL_EXPORT_KEYS
+/* Export key block support (not essential, saves space when disabled) */
+/* #undef MBEDTLS_SSL_EXPORT_KEYS */
 
 /* ============================================================================
- * PSK 认证
+ * PSK Authentication
  * ============================================================================ */
 
-/* PSK 密钥交换 - Bootstrap 安全模式需要 */
+/* PSK key exchange - required for Bootstrap security mode */
 #define MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
 
 /* ============================================================================
- * DTLS 安全特性
+ * DTLS Security Features
  * ============================================================================ */
 
-/* 防重放攻击保护 */
+/* Anti-replay protection */
 #define MBEDTLS_SSL_DTLS_ANTI_REPLAY
 
-/* HelloVerifyRequest 支持 */
+/* HelloVerifyRequest support */
 #define MBEDTLS_SSL_DTLS_HELLO_VERIFY
 
-/* 错误 MAC 限制 */
+/* Bad MAC limit */
 #define MBEDTLS_SSL_DTLS_BADMAC_LIMIT
 
 /* ============================================================================
- * 平台适配
+ * Platform Adaptation
  * ============================================================================ */
 
-/* 允许内联汇编优化 */
+/* Allow inline assembly optimizations */
 #define MBEDTLS_HAVE_ASM
 
-/* 使用自定义 timing 实现（SIMCOM 平台没有 Unix/Windows API） */
+/* Use custom timing implementation (SIMCOM platform has no Unix/Windows API) */
 #define MBEDTLS_TIMING_ALT
 
-/* 使用标准库内存分配 */
+/* Use standard library memory allocation */
 #define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_PLATFORM_CALLOC_MACRO   calloc
 #define MBEDTLS_PLATFORM_FREE_MACRO     free
 
-/* 禁用平台熵源（嵌入式平台没有 /dev/urandom 或 Windows CryptoAPI） */
+/* Disable platform entropy source (embedded platform has no /dev/urandom or Windows CryptoAPI) */
 #define MBEDTLS_NO_PLATFORM_ENTROPY
 
-/* 使用自定义硬件熵源（需实现 mbedtls_hardware_poll） */
+/* Use custom hardware entropy source (must implement mbedtls_hardware_poll) */
 #define MBEDTLS_ENTROPY_HARDWARE_ALT
 
-/* 禁用时间日期功能（嵌入式平台可能没有 RTC） */
+/* Disable time/date functions (embedded platform may have no RTC) */
 /* #undef MBEDTLS_HAVE_TIME */
 /* #undef MBEDTLS_HAVE_TIME_DATE */
 
 /* ============================================================================
- * 禁用不需要的功能以节省空间
+ * Disable Unnecessary Features to Save Space
  * ============================================================================ */
 
-/* 禁用文件系统 I/O */
+/* Disable file system I/O */
 #undef MBEDTLS_FS_IO
 
-/* 禁用网络层（使用 SIMCOM SDK 的 socket API） */
+/* Disable network layer (using SIMCOM SDK socket API) */
 #undef MBEDTLS_NET_C
 
-/* 禁用 SSL 服务器功能 */
+/* Disable SSL server functionality */
 #undef MBEDTLS_SSL_SRV_C
 
-/* 禁用 X.509 证书解析（PSK 模式不需要） */
+/* Disable X.509 certificate parsing (not needed for PSK mode) */
 #undef MBEDTLS_X509_CRT_PARSE_C
 #undef MBEDTLS_X509_C
 #undef MBEDTLS_CERTS_C
 
-/* 禁用公钥加密（PSK 模式不需要） */
+/* Disable public key cryptography (not needed for PSK mode) */
 #undef MBEDTLS_PK_C
 #undef MBEDTLS_PK_PARSE_C
 #undef MBEDTLS_RSA_C
@@ -139,7 +139,7 @@
 #undef MBEDTLS_ECDSA_C
 #undef MBEDTLS_DHM_C
 
-/* 禁用其他不需要的功能 */
+/* Disable other unnecessary features */
 #undef MBEDTLS_PSA_CRYPTO_C
 #undef MBEDTLS_SELF_TEST
 #undef MBEDTLS_VERSION_FEATURES

@@ -67,15 +67,15 @@
 
 /* Buffer sizes (adjust based on available RAM) */
 #ifndef ANJAY_IN_BUFFER_SIZE
-#define ANJAY_IN_BUFFER_SIZE        4000
+#define ANJAY_IN_BUFFER_SIZE        2048
 #endif
 
 #ifndef ANJAY_OUT_BUFFER_SIZE
-#define ANJAY_OUT_BUFFER_SIZE       4000
+#define ANJAY_OUT_BUFFER_SIZE       2048
 #endif
 
 #ifndef ANJAY_MSG_CACHE_SIZE
-#define ANJAY_MSG_CACHE_SIZE        4000
+#define ANJAY_MSG_CACHE_SIZE        1536
 #endif
 
 /* Lifetime in seconds (server will expect updates within this period) */

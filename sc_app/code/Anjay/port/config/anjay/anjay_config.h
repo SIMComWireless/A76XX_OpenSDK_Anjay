@@ -97,14 +97,14 @@
 /**
  * Enable support for the <c>anjay_download()</c> API.
  */
-#define ANJAY_WITH_DOWNLOADER
+/* #undef ANJAY_WITH_DOWNLOADER */
 
 /**
  * Enable support for CoAP(S) downloads.
  *
  * Only meaningful if <c>ANJAY_WITH_DOWNLOADER</c> is enabled.
  */
-#define ANJAY_WITH_COAP_DOWNLOAD
+/* #undef ANJAY_WITH_COAP_DOWNLOAD */
 
 /**
  * Enable support for HTTP(S) downloads.
@@ -131,7 +131,7 @@
  *
  * Note that it is required for full compliance with the LwM2M protocol.
  */
-#define ANJAY_WITH_DISCOVER
+/* #undef ANJAY_WITH_DISCOVER */
 
 /**
  * Enable support for the LwM2M Information Reporting interface (Observe and
@@ -163,7 +163,7 @@
 /**
  * Enable support for the <c>anjay_resource_observation_status()</c> API.
  */
-#define ANJAY_WITH_OBSERVATION_STATUS
+/* #undef ANJAY_WITH_OBSERVATION_STATUS */
 
 /**
  * Maximum number of servers observing a given Resource listed by
@@ -232,7 +232,7 @@
  * Requires <c>ANJAY_WITH_LWM2M11</c> and either <c>ANJAY_WITH_SENML_JSON</c> or
  * <c>ANJAY_WITH_CBOR</c> to be enabled.
  */
-#define ANJAY_WITH_SEND
+/* #undef ANJAY_WITH_SEND */
 
 /**
  * Enable support for the SMS binding and the SMS trigger mechanism.
@@ -335,14 +335,14 @@
  *
  * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
  */
-#define ANJAY_WITH_SENML_JSON
+/* #undef ANJAY_WITH_SENML_JSON */
 
 /**
  * Enable support for CBOR and SenML CBOR formats, as specified in LwM2M TS 1.1.
  *
  * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
  */
-#define ANJAY_WITH_CBOR
+/* #undef ANJAY_WITH_CBOR */
 
 /**
  * Enable support for Enrollment over Secure Transport.
@@ -466,7 +466,7 @@
  * replaced with a positive integer literal. The default value defined in CMake
  * build scripts is 1024.
  */
-#define ANJAY_DTLS_SESSION_BUFFER_SIZE 1024
+#define ANJAY_DTLS_SESSION_BUFFER_SIZE 512
 
 /**
  * Value of Content-Format used in Send messages. Only a few specific values are
@@ -529,7 +529,7 @@
 /**
  * Enable fw_update module (implementation of the Firmware Update object).
  */
-#define ANJAY_WITH_MODULE_FW_UPDATE
+/* #undef ANJAY_WITH_MODULE_FW_UPDATE */
 
 /**
  * Enable advanced_fw_update module (implementation of the 33629 custom
@@ -554,13 +554,13 @@
  * Enables ipso_objects module (generic implementation of basic sensor, three
  * axis sensor and Push Button IPSO objects).
  */
-#define ANJAY_WITH_MODULE_IPSO_OBJECTS
+/* #undef ANJAY_WITH_MODULE_IPSO_OBJECTS */
 
 /**
  * Enables experimental ipso_objects_v2 module (generic implementation of basic
  * sensor and three axis sensor IPSO objects).
  */
-#define ANJAY_WITH_MODULE_IPSO_OBJECTS_V2
+/* #undef ANJAY_WITH_MODULE_IPSO_OBJECTS_V2 */
 
 /**
  * Enable at_sms module (implementation of an SMS driver for AT modem devices).
@@ -693,7 +693,7 @@
  * <c>anjay_ssl_error_cb_t</c> callback.
  * Currently only supported for mbedTLS and custom SSL integration builds
  */
-#define ANJAY_WITH_SSL_ERROR_API
+/* #undef ANJAY_WITH_SSL_ERROR_API */
 
 /**
  * Enable support for /25 LwM2M Gateway Object.

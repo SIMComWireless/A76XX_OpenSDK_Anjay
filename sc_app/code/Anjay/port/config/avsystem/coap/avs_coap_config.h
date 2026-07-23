@@ -98,7 +98,7 @@
  *
  * Only meaningful if <c>WITH_AVS_COAP_OBSERVE</c> is enabled.
  */
-#define WITH_AVS_COAP_OBSERVE_PERSISTENCE
+/* #undef WITH_AVS_COAP_OBSERVE_PERSISTENCE */
 
 /**
  * Enable support for the streaming API
@@ -119,7 +119,7 @@
  * NOTE: Enabling at least one transport is necessary for the library to be
  * useful.
  */
-#define WITH_AVS_COAP_TCP
+/* #undef WITH_AVS_COAP_TCP */
 
 /**
  * Enable support for OSCORE (RFC 8613).
@@ -179,7 +179,7 @@
 /**
  * Enable sending diagnostic payload in error responses.
  */
-#define WITH_AVS_COAP_DIAGNOSTIC_MESSAGES
+/* #undef WITH_AVS_COAP_DIAGNOSTIC_MESSAGES */
 
 /**
  * Enable logging in avs_coap.
