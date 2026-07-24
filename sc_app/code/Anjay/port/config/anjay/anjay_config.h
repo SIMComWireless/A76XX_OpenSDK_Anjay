@@ -686,7 +686,7 @@
  * <c>anjay_get_server_connection_status()</c> API and related
  * <c>anjay_server_connection_status_cb_t</c> callback.
  */
-/* #undef ANJAY_WITH_CONN_STATUS_API */
+#define ANJAY_WITH_CONN_STATUS_API
 
 /**
  * Enable support for the experimental

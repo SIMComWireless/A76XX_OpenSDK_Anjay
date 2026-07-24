@@ -13,6 +13,7 @@
 #include "simcom_platform.h"
 #include "simcom_debug.h"
 #include "simcom_uart.h"
+#include "simcom_ntp_client.h"
 #include "anjay_simcom_config.h"
 
 #include <avsystem/commons/avs_time.h>
@@ -175,6 +176,29 @@ static const char *log_level_str[] = {
 /*===========================================================================
  * Logging implementation
  *===========================================================================*/
+
+/**
+ * @brief Get timestamp string from the SIMCOM local system time.
+ * @param buf   Output buffer (at least 32 bytes)
+ * @param size  Buffer size
+ */
+static void get_timestamp_str(char *buf, size_t size) {
+    SCsysTime_t currUtcTime;
+    sAPI_GetSysLocalTime(&currUtcTime);
+
+    /* Keep a millisecond suffix from the tick counter, while using the
+     * SIMCOM system-local-time API for the wall-clock fields. */
+    uint32_t ms = sAPI_GetTicks() % 1000;
+    snprintf(buf, size, "%02d/%02d/%02d,%02d:%02d:%02d.%03u",
+             currUtcTime.tm_year % 100,
+             currUtcTime.tm_mon + 1,
+             currUtcTime.tm_mday,
+             currUtcTime.tm_hour,
+             currUtcTime.tm_min,
+             currUtcTime.tm_sec,
+             ms);
+}
+
 void simcom_log_set_level(simcom_log_level_t level) {
     g_log_level = level;
 }
@@ -202,8 +226,11 @@ void simcom_log(simcom_log_level_t level, const char *module,
         p++;
     }
 
-    simcom_uart_log_write("[%s] %s (%s:%d): %s\r\n",
-                   log_level_str[level], module, filename, line, buf);
+    char time_buf[32];
+    get_timestamp_str(time_buf, sizeof(time_buf));
+
+    simcom_uart_log_write("[%s] [%s] %s (%s:%d): %s\r\n",
+                   time_buf, log_level_str[level], module, filename, line, buf);
 }
 
 /*===========================================================================
@@ -224,7 +251,11 @@ static const char *avs_log_level_str(avs_log_level_t level) {
 static void simcom_avs_log_handler(avs_log_level_t level,
                                    const char *module,
                                    const char *message) {
-    simcom_uart_log_write("[%s] %s: %s\r\n",
+    char time_buf[32];
+    get_timestamp_str(time_buf, sizeof(time_buf));
+
+    simcom_uart_log_write("[%s] [%s] %s: %s\r\n",
+                   time_buf,
                    avs_log_level_str(level),
                    module ? module : "?",
                    message ? message : "(null)");
